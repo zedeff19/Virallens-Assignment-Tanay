@@ -1,0 +1,20 @@
+# Secrets and local state
+.env
+.env.*
+!.env.example
+.langchain.db
+
+# Environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Regenerated inside the image by `python -m src.ingest` and `python -m src.ingest.index`
+index/
+data/processed/
+
+# Not part of the Q1 image
+q2_embedder/
+planv3.md
+.git/

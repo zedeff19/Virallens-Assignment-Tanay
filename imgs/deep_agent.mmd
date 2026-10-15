@@ -1,0 +1,31 @@
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 40, "rankSpacing": 55}}}%%
+flowchart TD
+    in([QUERY_TYPE + QUESTION<br/>from classify]) --> todos["<b>write_todos</b><br/>plan the steps"]
+    todos --> editor{{"<b>Editor</b> (routes by query type)<br/>tools: task, read_file, write_todos<br/>recursion limit 40, max_concurrency 1"}}
+
+    subgraph SUBS["Subagents (called with task, each returns a 3-line reply)"]
+        direction LR
+        retriever["<b>Retriever</b><br/>search_corpus, get_neighbors,<br/>find_citations, save_evidence<br/>returns FOUND / PARTIAL / NONE"]
+        analyst["<b>Analyst</b><br/>read_file, save_note<br/>structured holding, argument<br/>or timeline note"]
+        verifier["<b>Verifier</b><br/>read_file only<br/>quotes, numbers, dates, citations<br/>returns PASS or a fix list"]
+    end
+
+    editor <-->|"task"| retriever
+    editor <-->|"task"| analyst
+    editor <-->|"task: PASS, or FIX and the Editor<br/>corrects the draft"| verifier
+
+    fs[("virtual filesystem<br/>/evidence/*.md   /notes/*.md")]
+    retriever -->|"save_evidence<br/>(copies text by chunk id)"| fs
+    fs -->|"read_file /evidence"| analyst
+    analyst -->|"save_note"| fs
+    fs -->|"read_file /evidence only"| verifier
+    fs -.->|"read_file"| editor
+
+    editor -->|"final cited answer"| out(["answer + files + todos<br/>back to the format node"])
+
+    classDef llm fill:#e8f0fe,stroke:#4a6fa5,color:#111;
+    classDef det fill:#e6f4ea,stroke:#3c8d5a,color:#111;
+    classDef store fill:#fff4e0,stroke:#c08a2b,color:#111;
+    class editor,retriever,analyst,verifier llm;
+    class todos det;
+    class fs store;

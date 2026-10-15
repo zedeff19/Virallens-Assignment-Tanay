@@ -1,0 +1,13 @@
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 50, "rankSpacing": 50}}}%%
+flowchart TD
+    Q([User question]) --> classify["<b>classify</b><br/>small model tags the query type"]
+    classify -->|"out_of_scope"| refuse["<b>refuse</b><br/>scope message, 0 agent calls"]
+    classify -->|"any other type<br/>(unknown if the classifier fails)"| deep["<b>deep_agent</b><br/>DeepAgents Editor plans, delegates<br/>to subagents and writes the answer"]
+    deep --> format["<b>format</b> (deterministic)<br/>check citations against saved evidence,<br/>append Sources, warn on unverified"]
+    format --> A([Final answer])
+    refuse --> A
+
+    classDef llm fill:#e8f0fe,stroke:#4a6fa5,color:#111;
+    classDef det fill:#e6f4ea,stroke:#3c8d5a,color:#111;
+    class classify,deep llm;
+    class refuse,format det;

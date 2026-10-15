@@ -1,0 +1,6 @@
+# Extras needed by q2_embedder_final on top of the root requirements.txt (versions match the root pins)
+numpy==2.4.6
+scikit-learn==1.9.1
+sentence-transformers==6.1.0
+torch==2.14.1+cpu
+matplotlib==3.11.2

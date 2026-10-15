@@ -1,0 +1,20 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite
+*.sqlite3
+.langchain.db
+index/
+chroma/
+*.safetensors
+TASK.md
+planv3.md
+
+# superseded Q2 experiments - only q2_embedder_final/ is kept
+q2_embedder/
+
+# q2_embedder_final: keep code, data and reports; drop heavy artefacts
+q2_embedder_final/outputs*/*/finetuned_model/
+q2_embedder_final/outputs*/*/embeddings_*.npy
