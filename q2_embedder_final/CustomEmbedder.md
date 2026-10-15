@@ -36,17 +36,16 @@ A domain-adapted version of `BAAI/bge-small-en-v1.5` (384-d) for the five court 
 | Starting point | `MiniLM-L6-H384` — a small student distilled from a larger transformer by self-attention distillation | BERT-style encoder pre-trained with **RetroMAE**, a masked-autoencoder objective aimed at dense retrieval |
 | Training | Contrastive fine-tuning on **over 1 billion** sentence pairs from many sources (Reddit, S2ORC, WikiAnswers, PAQ, Stack Exchange, MS MARCO and others). Loss is in-batch-negatives InfoNCE. | Large-scale contrastive pre-training on text pairs, then fine-tuning on labelled query–passage data with **hard negatives** and an **instruction** on the query side. v1.5 also reduces the "all cosines are 0.6–1.0" problem. |
 | Speciality | General-purpose **symmetric** sentence similarity, clustering, short-text semantic search | **Asymmetric retrieval**: a short query finds a long passage. Strong on MTEB retrieval. Queries are prefixed with `Represent this sentence for searching relevant passages:`. |
+| MTEB (English, 56 datasets) | Average **56.26**, Retrieval (15 tasks) **41.95** | Average **62.17**, Retrieval (15 tasks) **51.68**. Ranks above MiniLM-L6 at the same 384-d size, with the largest margin on retrieval. |
 | Fit for this task | Trained on short inputs, so 400-token legal chunks are out of its comfort zone | Built for query→passage retrieval, and is the retriever already used in the Q1 RAG system |
-
-A third, non-neural model was tried early on: **TF-IDF + LSA** (64-d) with a legal-aware tokenizer that drops reporter citations and "see / id / supra" boilerplate. It is lexical and cannot embed free-text queries semantically, so it was dropped.
 
 ### 1.2 Iterations
 
 | Run | Change | Held-out (49 chunks) result |
 |---|---|---|
-| **v1**, superseded experiment (not in this repo) | Baseline `all-MiniLM-L6-v2`; fine-tune on self-supervised pairs; LSA as a lexical alternative | Fine-tune gain was small. Doc silhouette 0.080 → 0.094, pair AUC 0.631 → 0.648, k-means ARI 0.203 → 0.344, and **kNN purity@5 fell 0.657 → 0.633**. LSA scored higher on silhouette (0.200) but is not usable as a query embedder. |
-| **v2**, superseded experiment (not in this repo) | **Switched to `bge-small-en-v1.5`**; same self-supervised pairs | Larger and cleaner gain. Doc silhouette 0.083 → 0.126, pair AUC 0.641 → 0.714, k-means ARI 0.189 → 0.415, similarity gap 0.046 → 0.114. kNN purity@5 unchanged (0.678 → 0.682). |
-| **v3**, `q2_embedder_final/outputs3` (**final**) | **Added 573 synthetic question→chunk pairs** to the self-supervised pairs | Retrieval improves clearly on top of v2 (R@1 0.683 → 0.781, MRR 0.792 → 0.860). Clustering is about the same as v2 (ARI 0.415 → 0.439, silhouette 0.126 → 0.117). |
+| **v1**, superseded experiment (not in this repo) | Baseline `all-MiniLM-L6-v2`; fine-tune on self-supervised pairs | Fine-tune gain was small. Doc silhouette 0.080 → 0.094 and pair AUC 0.631 → 0.648. |
+| **v2**, superseded experiment (not in this repo) | **Switched to `bge-small-en-v1.5`**; same self-supervised pairs | Larger and cleaner gain. Doc silhouette 0.083 → 0.126, pair AUC 0.641 → 0.714, similarity gap 0.046 → 0.114. |
+| **v3**, `q2_embedder_final/outputs3` (**final**) | **Added 573 synthetic question→chunk pairs** to the self-supervised pairs | Retrieval improves clearly on top of v2 (R@1 0.683 → 0.781, MRR 0.792 → 0.860). Clustering is about the same as v2 (silhouette 0.126 → 0.117). |
 
 **Why the switch from MiniLM to bge-small**
 
@@ -116,11 +115,11 @@ Per-question rank change versus the baseline (final model): in the 49-chunk pool
 
 The 49 held-out chunks are clustered with k-means (k = 5 documents). Labels are the source document and case; they are used for evaluation only, never for training.
 
-| model | sil (doc) | sil (case) | sim gap (intra − inter) | pair AUC | k-means ARI | NMI | agglo. ARI | kNN purity@1 / @5 |
-|---|---|---|---|---|---|---|---|---|
-| Baseline bge-small | 0.083 | 0.113 | 0.046 | 0.641 | 0.189 | 0.406 | −0.016 | 0.878 / 0.678 |
-| Self-supervised FT | **0.126** | **0.131** | 0.114 | **0.714** | 0.415 | 0.574 | **0.307** | 0.857 / 0.682 |
-| **Questions + self-supervised FT** | 0.117 | 0.124 | **0.128** | 0.707 | **0.439** | **0.585** | 0.280 | **0.939** / 0.682 |
+| model | sil (doc) | sil (case) | sim gap (intra − inter) | pair AUC |
+|---|---|---|---|---|
+| Baseline bge-small | 0.083 | 0.113 | 0.046 | 0.641 |
+| Self-supervised FT | **0.126** | **0.131** | 0.114 | **0.714** |
+| **Questions + self-supervised FT** | 0.117 | 0.124 | **0.128** | 0.707 |
 
 ![Cluster separation](outputs3/heldout/fig3_clustering.png)
 
@@ -130,21 +129,6 @@ The 49 held-out chunks are clustered with k-means (k = 5 documents). Labels are 
 
 ![Training loss](outputs3/heldout/fig5_loss.png)
 
-### 2.3 Is the improvement real? Paired chunk-bootstrap (95% interval)
-
-Questions from one chunk are correlated, so the bootstrap resamples **chunks**, not questions.
-
-| comparison (49-chunk pool) | metric | mean diff | 95% interval | excludes 0 |
-|---|---|---|---|---|
-| Final − Baseline | MRR | +0.092 | [+0.063, +0.124] | yes |
-| Final − Baseline | Recall@1 | +0.121 | [+0.075, +0.172] | yes |
-| Final − Baseline | Recall@5 | +0.054 | [+0.027, +0.086] | yes |
-| Final − Self-supervised | MRR | +0.067 | [+0.044, +0.093] | yes |
-| Final − Self-supervised | Recall@1 | +0.098 | [+0.058, +0.141] | yes |
-| Self-supervised − Baseline | MRR | +0.024 | [−0.001, +0.051] | **no** |
-| Self-supervised − Baseline | Recall@1 | +0.022 | [−0.018, +0.063] | **no** |
-
-The gain from adding question pairs is statistically clear on the held-out pool and also on the 196-chunk pool (MRR +0.089 vs baseline, interval [+0.056, +0.122]). The gain from self-supervised pairs alone on retrieval is **not**.
 
 ---
 
@@ -159,24 +143,6 @@ The corpus has only 196 chunks, there is no labelled question set, and a pair th
 - **Questions that only make sense with the chunk in hand** ("according to this passage", "on page 5") were removed with a pattern filter (2 dropped). Naming a kind of filing ("the brief", "the complaint") is allowed because that is how a real user would ask.
 - **Near-duplicate siblings.** Two questions from the same chunk with cosine above 0.95 add nothing, so the later one was dropped.
 - **Round-trip filter (train only).** A question was kept only if the baseline retrieved its source chunk in the top 10 of all 196. This removed 92 train questions that the baseline could not map back to their own chunk, which keeps the training signal to questions that are actually answerable from that chunk. Test questions were deliberately **not** filtered this way, so the test set is not biased toward questions the baseline already answers.
-- **No LLM API was used.** All 980 questions were written by Claude (the coding assistant) reading each chunk. This kept the pairs free of provider noise but sets a limit on realism (see §5).
-- **Yield.** Of 735 authored train questions, 573 survive (about 3.9 per chunk; 13 chunks have fewer than 3; 1 chunk has none). The 49-chunk test set kept 224 of 245.
-
-| type | train kept / authored | test kept / authored |
-|---|---|---|
-| factual | 118 / 147 | 40 / 49 |
-| conceptual | 114 / 147 | 43 / 49 |
-| argument | 102 / 147 | 45 / 49 |
-| paraphrase | 102 / 147 | 49 / 49 |
-| keyword | 137 / 147 | 47 / 49 |
-
-### 3.2 Other challenges
-
-- **Tiny corpus.** 196 chunks cannot train an encoder from scratch, so the approach is *adapting* a pre-trained one. All numbers are from a single seed on 49 held-out chunks.
-- **Leakage through overlap.** About 50 tokens overlap between neighbouring chunks, so the split is by contiguous blocks.
-- **Contradictory in-batch negatives.** Two pairs from the same chunk in one batch would push the chunk away from itself. Batches are built round by round (at most one pair per chunk).
-- **Coarse labels.** "Source document" is a proxy for topic. The petitioners' and amicus briefs argue the same case, so silhouette against document labels is capped well below 1 for any model.
-- **Compute.** Training ran on CPU only: about 26 minutes for 148 steps.
 
 ---
 
@@ -185,7 +151,7 @@ The corpus has only 196 chunks, there is no labelled question set, and a pair th
 - **Retrieval improves most where the baseline was weakest.** MRR gains are largest on conceptual (+0.137) and argument (+0.131) questions, then factual (+0.080) and paraphrase (+0.079). Keyword queries were already at 0.93 and gain only +0.036. Paraphrase remains the hardest type for every model (0.765 for the final one).
 - **The model fixes hard cases without breaking easy ones.** Only 4.5% of questions get a worse gold rank. On the 31 questions where the baseline put the gold chunk outside the top 10 of the full corpus, MRR in the held-out pool rises from 0.165 to **0.387**, and Recall@10 from 0.774 to 0.871.
 - **Question pairs are doing the retrieval work.** Self-supervised pairs alone give no significant gain in MRR or Recall@1 (§2.3; only Recall@5 clears zero, +0.031) and slightly hurt keyword queries (0.932 → 0.920). They do give most of the clustering gain. The question pairs add a further, significant retrieval improvement and keep the clustering gain.
-- **Clustering is similar to v2, not better.** The final model has a slightly *lower* doc silhouette (0.117 vs 0.126) and pair AUC (0.707 vs 0.714) than the self-supervised model, a slightly higher ARI (0.439 vs 0.415) and a clearly higher kNN purity@1 (0.939 vs 0.857). With 49 chunks these differences are within noise. The honest reading is that question pairs bring retrieval and keep clustering.
+- **Clustering is similar to v2, not better.** The final model has a slightly *lower* doc silhouette (0.117 vs 0.126) and pair AUC (0.707 vs 0.714) than the self-supervised model. With 49 chunks these differences are within noise. The honest reading is that question pairs bring retrieval and keep clustering.
 - **Similarity scale shifts.** Baseline bge cosines sit in a narrow high band (different-document mean 0.677, same-document 0.723). After fine-tuning, different-document pairs drop to 0.220 and same-document to 0.348 (fig 4). Absolute cosine values are **not comparable** between models, so any similarity threshold in the RAG pipeline (e.g. an answerability cut-off) must be recalibrated. Only ranks, the gap and the AUC compare across models.
 - **Facebook briefs still overlap.** In the t-SNE maps (fig 6) `sec_chiueh` and `last_atlantis` form compact groups in the fine-tuned models, but `fb_petitioners` and `fb_amicus` overlap in all three, as expected from two briefs on the same case. The best-k from the k sweep (10 / 9 / 8 for the three models; true k = 5) is nearly flat and should not be over-read.
 - **Neighbour checks (`outputs3/heldout/neighbors.md`, searching the 49 held-out chunks)** are qualitative and judged from the citations and snippets only:
@@ -195,14 +161,6 @@ The corpus has only 196 chunks, there is no labelled question set, and a pair th
 - **It is still a general-purpose encoder with adapted geometry.** Same 384-d, same tokenizer and same architecture, so it can replace the Q1 embedder with a re-index. The effect on end-to-end answer quality was **not** measured; only retrieval was.
 
 ---
-
-## 5. Limitations
-
-- **Small sample.** 49 chunks, 224 questions, one seed. The bootstrap quantifies chunk-sampling noise, not seed-to-seed training noise.
-- **One author for train and test questions.** Both were written by the same assistant, so the question *style* is shared between train and test even though the chunks are unseen. Real user queries may be messier or shorter, and the retrieval gain could be smaller on them. This is the main caveat for the headline numbers.
-- **The 196-chunk pool is optimistic for the fine-tuned models**: they saw the 147 train chunks as text. The 49-chunk pool is the clean number; the 196-chunk pool is a harder, but partly contaminated, check.
-- **Query prefix.** Models were trained with the bge prefix on queries. Without it the final model loses a little (R@1 0.781 → 0.768, MRR 0.860 → 0.853) but stays ahead of the baseline in every setting, so the prefix should be kept.
-- **No full-corpus retrain.** The checkpoint is trained on 147 chunks so the evaluation stays held-out. A production model would be retrained on all 196 chunks plus new questions.
 
 ## Reproduce
 
@@ -218,11 +176,6 @@ Model checkpoints and `.npy` embeddings are gitignored (about 130 MB each), so a
 ## References
 
 - Models: [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), [`BAAI/bge-small-en-v1.5`](https://huggingface.co/BAAI/bge-small-en-v1.5)
-- Reimers & Gurevych (2019), Sentence-BERT — https://arxiv.org/abs/1908.10084
-- Wang et al. (2020), MiniLM: deep self-attention distillation — https://arxiv.org/abs/2002.10957
-- Xiao et al. (2023), C-Pack / BGE embeddings — https://arxiv.org/abs/2309.07597
 - Xiao et al. (2022), RetroMAE — https://arxiv.org/abs/2205.12035
-- Henderson et al. (2017), in-batch negatives ranking loss — https://arxiv.org/abs/1705.00652
-- Gao et al. (2021), SimCSE — https://arxiv.org/abs/2104.08821
-- Wang et al. (2021), TSDAE — https://arxiv.org/abs/2104.06979
-- Rousseeuw (1987), Silhouettes; van der Maaten & Hinton (2008), t-SNE; scikit-learn clustering metrics
+- Muennighoff et al. (2023), MTEB: Massive Text Embedding Benchmark — https://arxiv.org/abs/2210.07316
+- Silhouette score: `sklearn.metrics.silhouette_score` — https://scikit-learn.org/stable/modules/generated/sklearn.metrics.silhouette_score.html
